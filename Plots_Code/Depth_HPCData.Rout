@@ -1,0 +1,501 @@
+
+R version 3.3.2 (2016-10-31) -- "Sincere Pumpkin Patch"
+Copyright (C) 2016 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.4.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> rm(list = ls())
+> library(tidyverse)
+── Attaching packages ─────────────────────────────────────── tidyverse 1.2.1 ──
+✔ ggplot2 2.2.1     ✔ purrr   0.2.4
+✔ tibble  1.3.4     ✔ dplyr   0.7.4
+✔ tidyr   0.7.2     ✔ stringr 1.2.0
+✔ readr   1.1.1     ✔ forcats 0.3.0
+── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+✖ dplyr::filter() masks stats::filter()
+✖ dplyr::lag()    masks stats::lag()
+> library(DepthProc, quietly = T)
+Scalable Robust Estimators with High Breakdown Point (version 1.4-3)
+
+
+Attaching package: ‘MASS’
+
+The following object is masked from ‘package:dplyr’:
+
+    select
+
+Nonparametric Kernel Methods for Mixed Datatypes (version 0.60-5)
+[vignette("np_faq",package="np") provides answers to frequently asked questions]
+[vignette("np",package="np") an overview]
+[vignette("entropy_np",package="np") an overview of entropy-based methods]
+
+Attaching package: ‘DepthProc’
+
+The following object is masked from ‘package:base’:
+
+    as.matrix
+
+> library(unequalgroupoutlier)
+> 
+> #folder_location <- "/Users/channum/Documents/Project/Code/Data/" # for NREL comp
+> folder_location <- "/Users/cshannum/Documents/CSM/NRELCollab/Data/" # for home comp
+> 
+> options(warn = 2)
+> #-------------------------------------------------------------------------------
+> # Access metadata to get jobs of interest --------------------------------------
+> 
+> load(paste(folder_location, "10k_jobs_metadata.RData", sep = ""))
+> load(file = paste(folder_location, "User_Power_Data.RData", sep = ""))
+> # load(file = paste(folder_location, "Y.Rdata", sep=""))
+> # load(file = paste(folder_location, "x.Rdata", sep=""))
+> 
+> user_jobs <- df_jobs %>%
++   filter(user_name == "c49b64ce0319f7718fa1af317745dfd4e1771331") #some annomous user
+> 
+> #-------------------------------------------------------------------------------
+> # # Get filenames for data -----------------------------------------------------
+> #
+> # #notice that I append the filepath to point to where the files are stored
+> # tic <- proc.time()
+> # user_power <- data_frame(File_Short = unique(user_jobs$File_Short)) %>%
+> #   #mutate(File = file.path( "/Users/channum/Documents/Project/Code/Data/10k_processed_data", File_Short)) %>%
+> #   mutate(File = file.path(paste(folder_location, "10k_processed_data", sep = ""), File_Short)) %>%
+> #   split(.$File) %>%
+> #   map_df(.f = function(z) {
+> #     cur_jobs <- user_jobs %>%
+> #       filter(File_Short == z$File_Short)
+> #
+> #     load(z$File)
+> #     cur_power <- df.power %>%
+> #       filter(Job %in% cur_jobs$Job)
+> #     rm(list = c("df.ganglia", "df.power", "df.job"))
+> #     return(cur_power)
+> #   })
+> #
+> # toc <- proc.time()
+> # elapsed_time <- toc - tic
+> # elapsed_time
+> #
+> # #save(user_power, file = paste(folder_location, "User_Power_Data.RData", sep = ""))
+> 
+> #-------------------------------------------------------------------------------
+> # # Take a look at lengths of jobs ---------------------------------------------
+> # #Rel time is measured in milliseconds
+> # #RelTime.Min is measured in minutes
+> #
+> # user_runtimes <- user_power %>%
+> #   group_by(Job) %>%
+> #   summarise(Runtime_Min = diff(range(RelTime.Min)))
+> #
+> # user_runtimes %>%
+> #   ggplot(., aes(x = Runtime_Min)) +
+> #   geom_histogram(fill = "dodgerblue", colour = "black", binwidth = 300) +
+> #   labs(x = "Runtime (Minutes)") +
+> #   theme_bw()
+> #
+> # user_power %>%
+> #   ggplot(., aes(x = RelTime.Min, y = value, group = JobHost)) +
+> #   geom_line(alpha = .1)
+> 
+> #-------------------------------------------------------------------------------
+> # Put into usable format -------------------------------------------------------
+> 
+> # identify all unique Job's
+> unique_host <- unique(user_power$JobHost)
+> 
+> # Put JobHost, value and RelTime in order by Jobhost then RelTime
+> Order_user_power <- user_power %>%
++   dplyr::select(JobHost, value, RelTime) %>%
++   arrange(JobHost, RelTime)
+> 
+> # How many of each unique job there is
+> Job_table <- table(Order_user_power$JobHost)
+> # create vector containing length of each unique job dataset
+> MyIndex <- c()
+> for(i in 1:length(Job_table)){
++   MyIndex <- append(MyIndex, rep(as.numeric(Job_table[i]), Job_table[i]))
++ }
+> 
+> # append vector to Order_user_power
+> Order_user_power$length <- MyIndex
+> 
+> # Filter to grab only ones with length greater than 1000
+> length_index <- which(Job_table > 1000 & Job_table < 6000)
+> Order_user_power <- Order_user_power %>%
++   filter(length > 1000)
+> 
+> # how many datasets do we have
+> N <- length(unique(Order_user_power$JobHost)) # 100
+> 
+> RelTime_Sec <- round(Order_user_power$RelTime/1000, digits = 0)
+> 
+> # append to Order_user_power our time vector
+> Order_user_power$RelTime_Sec <- RelTime_Sec
+> 
+> # Final version
+> Y_df <- Order_user_power %>%
++   dplyr::select(JobHost, value, RelTime_Sec)
+> 
+> #-------------------------------------------------------------------------------
+> # Choose knots -----------------------------------------------------------------
+> 
+> # Change columns names for input
+> Y <- Y_df %>%
++   rename(ID = JobHost, y = value, x = RelTime_Sec)
+> 
+> # scale response variable so variance is closer to 1
+> Y_Sd <- Y %>% group_by(ID) %>% summarise(sd=sd(y))
+> norm_sd <- mean(Y_Sd$sd)
+> Y$y <- Y$y/norm_sd
+> 
+> # For later use
+> unique_ID <- unique(Y$ID)
+> 
+> # Choose knots
+> K <- 60
+> knots <- choose_knots(Y, K)
+> # Compute range parameter
+> theta <- 3*sd(knots)*K^(-1/3)
+> 
+> # plot data and basis
+> basis <- function(x, k, c){exp(-abs(x - k)/c)} # radial basis
+> Y_basis <- Y %>%
++   mutate(basis1 = basis(x, knots[2], theta)) %>% # choose middle knots
++   mutate(basis2 = basis(x, knots[20], theta)) %>%
++   mutate(basis3 = basis(x, knots[30], theta)) %>%
++   mutate(basis4 = basis(x, knots[40], theta))
+> 
+> # png("/Users/cshannum/Documents/CSM/NRELCollab/Package/unequalgroupoutlier/Plots_Code/CPU_Power_Plot.png")
+> # Plot_y <- ggplot(Y_basis, aes(x = x, y = y, group = ID)) +
+> #   geom_vline(xintercept = knots, alpha = .3, linetype = "dashed") +
+> #   geom_line(alpha = .5) +
+> #   labs(title = "CPU Power", hjust = .5, shape = "Type") +
+> #   theme_bw() +
+> #   theme(panel.grid.major = ggplot2::element_blank(),
+> #         panel.grid.minor = ggplot2::element_blank(),
+> #         plot.title = ggplot2::element_text(hjust = .5, size = ggplot2::rel(2)))
+> # print(Plot_y)
+> # dev.off()
+> 
+> # png("/Users/cshannum/Documents/CSM/NRELCollab/Package/unequalgroupoutlier/Plots_Code/CPU_Power_Basis_Plot.png")
+> # Plot_y_basis <- ggplot() +
+> #   geom_vline(xintercept = knots, alpha = .3, linetype = "dashed") +
+> #   geom_line(data = Y_basis, aes(x = x, y = basis1*100, group = ID), col = "deeppink3", size = 2) +
+> #   geom_line(data = Y_basis, aes(x = x, y = basis2*100, group = ID), col = "blue4", size = 2) +
+> #   geom_line(data = Y_basis, aes(x = x, y = basis3*100, group = ID), col = "chocolate2", size = 2) +
+> #   geom_line(data = Y_basis, aes(x = x, y = basis4*100, group = ID), col = "chartreuse4", size = 2) +
+> #     labs(title = "Radial Basis", hjust = .5, shape = "Type") +
+> #   theme_bw() +
+> #   theme(panel.grid.major = ggplot2::element_blank(),
+> #         panel.grid.minor = ggplot2::element_blank(),
+> #         plot.title = ggplot2::element_text(hjust = .5, size = ggplot2::rel(2)))
+> # print(Plot_y_basis)
+> # dev.off()
+> 
+> #-------------------------------------------------------------------------------
+> # Fit the data ####
+> 
+> fit_all_values <- Mixed_Model_Spline_Fit(Y, knots, theta = theta)
+Note: method with signature ‘symmetricMatrix#missing’ chosen for function ‘Schur’,
+ target signature ‘dsyMatrix#missing’.
+ "dsyMatrix#ANY" would also be valid
+[1] "Removing knots 53 through 60 to fit dataset 1"
+[1] "Removing knots 53 through 60 to fit dataset 2"
+[1] "Removing knots 53 through 60 to fit dataset 3"
+[1] "Removing knots 53 through 60 to fit dataset 4"
+[1] "Removing knots 53 through 60 to fit dataset 5"
+[1] "Removing knots 53 through 60 to fit dataset 6"
+[1] "Removing knots 53 through 60 to fit dataset 7"
+[1] "Removing knots 53 through 60 to fit dataset 8"
+[1] "Removing knots 53 through 60 to fit dataset 9"
+[1] "Removing knots 53 through 60 to fit dataset 10"
+[1] "Removing knots 53 through 60 to fit dataset 11"
+[1] "Removing knots 53 through 60 to fit dataset 12"
+[1] "Removing knots 24 through 60 to fit dataset 13"
+[1] "Removing knots 24 through 60 to fit dataset 14"
+[1] "Removing knots 24 through 60 to fit dataset 15"
+[1] "Removing knots 24 through 60 to fit dataset 16"
+[1] "Removing knots 43 through 60 to fit dataset 17"
+[1] "Removing knots 43 through 60 to fit dataset 18"
+[1] "Removing knots 43 through 60 to fit dataset 19"
+[1] "Removing knots 43 through 60 to fit dataset 20"
+[1] "Removing knots 43 through 60 to fit dataset 21"
+[1] "Removing knots 17 through 60 to fit dataset 22"
+[1] "Removing knots 17 through 60 to fit dataset 23"
+[1] "Removing knots 17 through 60 to fit dataset 24"
+[1] "Removing knots 17 through 60 to fit dataset 25"
+[1] "Removing knots 17 through 60 to fit dataset 26"
+[1] "Removing knots 17 through 60 to fit dataset 27"
+[1] "Removing knots 9 through 60 to fit dataset 28"
+[1] "Removing knots 9 through 60 to fit dataset 29"
+[1] "Removing knots 9 through 60 to fit dataset 30"
+[1] "Removing knots 9 through 60 to fit dataset 31"
+[1] "Removing knots 43 through 60 to fit dataset 32"
+[1] "Removing knots 43 through 60 to fit dataset 33"
+[1] "Removing knots 43 through 60 to fit dataset 34"
+[1] "Removing knots 43 through 60 to fit dataset 35"
+[1] "Removing knots 39 through 60 to fit dataset 36"
+[1] "Removing knots 39 through 60 to fit dataset 37"
+[1] "Removing knots 39 through 60 to fit dataset 38"
+[1] "Removing knots 39 through 60 to fit dataset 39"
+[1] "Removing knots 15 through 60 to fit dataset 40"
+[1] "Removing knots 15 through 60 to fit dataset 41"
+[1] "Removing knots 15 through 60 to fit dataset 42"
+[1] "Removing knots 15 through 60 to fit dataset 43"
+[1] "Removing knots 42 through 60 to fit dataset 44"
+[1] "Removing knots 42 through 60 to fit dataset 45"
+[1] "Removing knots 8 through 60 to fit dataset 46"
+[1] "Removing knots 8 through 60 to fit dataset 47"
+[1] "Removing knots 8 through 60 to fit dataset 48"
+[1] "Removing knots 8 through 60 to fit dataset 49"
+[1] "Removing knots 15 through 60 to fit dataset 50"
+[1] "Removing knots 15 through 60 to fit dataset 51"
+[1] "Removing knots 15 through 60 to fit dataset 52"
+[1] "Removing knots 15 through 60 to fit dataset 53"
+[1] "Removing knots 15 through 60 to fit dataset 54"
+[1] "Removing knots 15 through 60 to fit dataset 55"
+[1] "Removing knots 43 through 60 to fit dataset 56"
+[1] "Removing knots 43 through 60 to fit dataset 57"
+[1] "Removing knots 43 through 60 to fit dataset 58"
+[1] "Removing knots 43 through 60 to fit dataset 59"
+[1] "Removing knots 18 through 60 to fit dataset 60"
+[1] "Removing knots 18 through 60 to fit dataset 61"
+[1] "Removing knots 18 through 60 to fit dataset 62"
+[1] "Removing knots 18 through 60 to fit dataset 63"
+[1] "Removing knots 33 through 60 to fit dataset 64"
+[1] "Removing knots 33 through 60 to fit dataset 65"
+[1] "Removing knots 33 through 60 to fit dataset 66"
+[1] "Removing knots 33 through 60 to fit dataset 67"
+[1] "Removing knots 7 through 60 to fit dataset 69"
+[1] "Removing knots 7 through 60 to fit dataset 70"
+[1] "Removing knots 7 through 60 to fit dataset 71"
+[1] "Removing knots 7 through 60 to fit dataset 72"
+[1] "Removing knots 7 through 60 to fit dataset 73"
+[1] "Removing knots 43 through 60 to fit dataset 74"
+[1] "Removing knots 43 through 60 to fit dataset 75"
+[1] "Removing knots 43 through 60 to fit dataset 76"
+[1] "Removing knots 43 through 60 to fit dataset 77"
+[1] "Removing knots 42 through 60 to fit dataset 78"
+[1] "Removing knots 42 through 60 to fit dataset 79"
+[1] "Removing knots 42 through 60 to fit dataset 80"
+[1] "Removing knots 42 through 60 to fit dataset 81"
+[1] "Removing knots 33 through 60 to fit dataset 82"
+[1] "Removing knots 33 through 60 to fit dataset 83"
+[1] "Removing knots 33 through 60 to fit dataset 84"
+[1] "Removing knots 33 through 60 to fit dataset 85"
+[1] "Removing knots 43 through 60 to fit dataset 86"
+[1] "Removing knots 43 through 60 to fit dataset 87"
+[1] "Removing knots 43 through 60 to fit dataset 88"
+[1] "Removing knots 43 through 60 to fit dataset 89"
+[1] "Removing knots 14 through 60 to fit dataset 90"
+[1] "Removing knots 14 through 60 to fit dataset 91"
+[1] "Removing knots 14 through 60 to fit dataset 92"
+[1] "Removing knots 14 through 60 to fit dataset 93"
+[1] "Removing knots 42 through 60 to fit dataset 94"
+[1] "Removing knots 42 through 60 to fit dataset 95"
+[1] "Removing knots 42 through 60 to fit dataset 96"
+[1] "Removing knots 42 through 60 to fit dataset 97"
+[1] "Removing knots 8 through 60 to fit dataset 98"
+[1] "Removing knots 8 through 60 to fit dataset 99"
+[1] "Removing knots 8 through 60 to fit dataset 101"
+[1] "Removing knots 10 through 60 to fit dataset 102"
+[1] "Removing knots 10 through 60 to fit dataset 103"
+[1] "Removing knots 10 through 60 to fit dataset 104"
+[1] "Removing knots 10 through 60 to fit dataset 105"
+[1] "Removing knots 14 through 60 to fit dataset 106"
+[1] "Removing knots 14 through 60 to fit dataset 107"
+[1] "Removing knots 14 through 60 to fit dataset 108"
+[1] "Removing knots 14 through 60 to fit dataset 109"
+[1] "Removing knots 8 through 60 to fit dataset 110"
+[1] "Removing knots 8 through 60 to fit dataset 111"
+[1] "Removing knots 8 through 60 to fit dataset 112"
+[1] "Removing knots 8 through 60 to fit dataset 113"
+[1] "Removing knots 39 through 60 to fit dataset 114"
+[1] "Removing knots 39 through 60 to fit dataset 115"
+[1] "Removing knots 39 through 60 to fit dataset 116"
+[1] "Removing knots 39 through 60 to fit dataset 117"
+[1] "Removing knots 9 through 60 to fit dataset 118"
+[1] "Removing knots 9 through 60 to fit dataset 119"
+[1] "Removing knots 9 through 60 to fit dataset 120"
+[1] "Removing knots 9 through 60 to fit dataset 121"
+[1] "Removing knots 36 through 60 to fit dataset 122"
+[1] "Removing knots 36 through 60 to fit dataset 123"
+[1] "Removing knots 36 through 60 to fit dataset 124"
+[1] "Removing knots 36 through 60 to fit dataset 125"
+[1] "Removing knots 23 through 60 to fit dataset 126"
+[1] "Removing knots 23 through 60 to fit dataset 127"
+[1] "Removing knots 23 through 60 to fit dataset 128"
+[1] "Removing knots 23 through 60 to fit dataset 129"
+[1] "Removing knots 7 through 60 to fit dataset 130"
+[1] "Removing knots 7 through 60 to fit dataset 131"
+[1] "Removing knots 7 through 60 to fit dataset 132"
+[1] "Removing knots 7 through 60 to fit dataset 133"
+[1] "Removing knots 35 through 60 to fit dataset 134"
+[1] "Removing knots 35 through 60 to fit dataset 135"
+[1] "Removing knots 35 through 60 to fit dataset 136"
+[1] "Removing knots 35 through 60 to fit dataset 137"
+[1] "Removing knots 35 through 60 to fit dataset 138"
+[1] "Removing knots 35 through 60 to fit dataset 139"
+[1] "Removing knots 35 through 60 to fit dataset 140"
+[1] "Removing knots 35 through 60 to fit dataset 141"
+[1] "Removing knots 43 through 60 to fit dataset 142"
+[1] "Removing knots 43 through 60 to fit dataset 143"
+[1] "Removing knots 43 through 60 to fit dataset 144"
+[1] "Removing knots 43 through 60 to fit dataset 145"
+[1] "Removing knots 12 through 60 to fit dataset 146"
+[1] "Removing knots 12 through 60 to fit dataset 147"
+[1] "Removing knots 12 through 60 to fit dataset 148"
+[1] "Removing knots 12 through 60 to fit dataset 149"
+[1] "Removing knots 9 through 60 to fit dataset 150"
+[1] "Removing knots 9 through 60 to fit dataset 151"
+[1] "Removing knots 9 through 60 to fit dataset 152"
+[1] "Removing knots 9 through 60 to fit dataset 153"
+[1] "Removing knots 13 through 60 to fit dataset 154"
+[1] "Removing knots 13 through 60 to fit dataset 155"
+[1] "Removing knots 13 through 60 to fit dataset 156"
+[1] "Removing knots 13 through 60 to fit dataset 157"
+[1] "Removing knots 14 through 60 to fit dataset 158"
+[1] "Removing knots 14 through 60 to fit dataset 159"
+[1] "Removing knots 14 through 60 to fit dataset 160"
+[1] "Removing knots 14 through 60 to fit dataset 161"
+[1] "Removing knots 37 through 60 to fit dataset 162"
+[1] "Removing knots 37 through 60 to fit dataset 163"
+[1] "Removing knots 37 through 60 to fit dataset 164"
+[1] "Removing knots 37 through 60 to fit dataset 165"
+[1] "Removing knots 7 through 60 to fit dataset 167"
+[1] "Removing knots 7 through 60 to fit dataset 168"
+[1] "Removing knots 7 through 60 to fit dataset 169"
+[1] "Removing knots 17 through 60 to fit dataset 170"
+[1] "Removing knots 17 through 60 to fit dataset 171"
+[1] "Removing knots 17 through 60 to fit dataset 172"
+[1] "Removing knots 17 through 60 to fit dataset 173"
+[1] "Removing knots 17 through 60 to fit dataset 174"
+[1] "Removing knots 17 through 60 to fit dataset 175"
+[1] "Removing knots 41 through 60 to fit dataset 176"
+[1] "Removing knots 41 through 60 to fit dataset 177"
+[1] "Removing knots 41 through 60 to fit dataset 178"
+[1] "Removing knots 41 through 60 to fit dataset 179"
+[1] "Removing knots 41 through 60 to fit dataset 180"
+[1] "Removing knots 41 through 60 to fit dataset 181"
+[1] "Removing knots 26 through 60 to fit dataset 182"
+[1] "Removing knots 26 through 60 to fit dataset 183"
+[1] "Removing knots 26 through 60 to fit dataset 184"
+[1] "Removing knots 26 through 60 to fit dataset 185"
+[1] "Removing knots 26 through 60 to fit dataset 186"
+[1] "Removing knots 26 through 60 to fit dataset 187"
+[1] "Removing knots 39 through 60 to fit dataset 188"
+[1] "Removing knots 39 through 60 to fit dataset 189"
+[1] "Removing knots 39 through 60 to fit dataset 190"
+[1] "Removing knots 39 through 60 to fit dataset 191"
+[1] "Removing knots 46 through 60 to fit dataset 197"
+[1] "Removing knots 46 through 60 to fit dataset 198"
+[1] "Removing knots 46 through 60 to fit dataset 199"
+[1] "Removing knots 46 through 60 to fit dataset 200"
+[1] "Removing knots 46 through 60 to fit dataset 201"
+[1] "Removing knots 46 through 60 to fit dataset 202"
+[1] "Removing knots 43 through 60 to fit dataset 203"
+[1] "Removing knots 43 through 60 to fit dataset 204"
+[1] "Removing knots 43 through 60 to fit dataset 205"
+[1] "Removing knots 43 through 60 to fit dataset 206"
+[1] "Removing knots 43 through 60 to fit dataset 207"
+[1] "Removing knots 43 through 60 to fit dataset 208"
+[1] "Removing knots 43 through 60 to fit dataset 209"
+[1] "Removing knots 43 through 60 to fit dataset 210"
+[1] "Removing knots 43 through 60 to fit dataset 211"
+[1] "Removing knots 43 through 60 to fit dataset 212"
+[1] "Removing knots 43 through 60 to fit dataset 213"
+[1] "Removing knots 43 through 60 to fit dataset 214"
+[1] "Removing knots 43 through 60 to fit dataset 215"
+[1] "Removing knots 43 through 60 to fit dataset 216"
+[1] "Removing knots 39 through 60 to fit dataset 217"
+[1] "Removing knots 39 through 60 to fit dataset 218"
+[1] "Removing knots 39 through 60 to fit dataset 219"
+[1] "Removing knots 39 through 60 to fit dataset 220"
+[1] "Removing knots 43 through 60 to fit dataset 221"
+[1] "Removing knots 43 through 60 to fit dataset 222"
+[1] "Removing knots 43 through 60 to fit dataset 223"
+[1] "Removing knots 43 through 60 to fit dataset 224"
+[1] "Removing knots 43 through 60 to fit dataset 225"
+[1] "Removing knots 43 through 60 to fit dataset 226"
+[1] "Removing knots 53 through 60 to fit dataset 227"
+[1] "Removing knots 53 through 60 to fit dataset 228"
+[1] "Removing knots 53 through 60 to fit dataset 229"
+[1] "Removing knots 53 through 60 to fit dataset 230"
+[1] "Removing knots 53 through 60 to fit dataset 231"
+[1] "Removing knots 53 through 60 to fit dataset 232"
+[1] "Removing knots 10 through 60 to fit dataset 233"
+[1] "Removing knots 10 through 60 to fit dataset 234"
+[1] "Removing knots 10 through 60 to fit dataset 235"
+[1] "Removing knots 53 through 60 to fit dataset 237"
+[1] "Removing knots 53 through 60 to fit dataset 238"
+[1] "Removing knots 53 through 60 to fit dataset 239"
+[1] "Removing knots 53 through 60 to fit dataset 240"
+[1] "Removing knots 53 through 60 to fit dataset 241"
+[1] "Removing knots 53 through 60 to fit dataset 242"
+[1] "Removing knots 53 through 60 to fit dataset 243"
+[1] "Removing knots 53 through 60 to fit dataset 244"
+[1] "Removing knots 53 through 60 to fit dataset 245"
+[1] "Removing knots 53 through 60 to fit dataset 246"
+[1] "Removing knots 53 through 60 to fit dataset 247"
+[1] "Removing knots 53 through 60 to fit dataset 248"
+[1] "Removing knots 53 through 60 to fit dataset 249"
+[1] "Removing knots 53 through 60 to fit dataset 250"
+[1] "Removing knots 53 through 60 to fit dataset 251"
+[1] "Removing knots 53 through 60 to fit dataset 252"
+[1] "Removing knots 53 through 60 to fit dataset 253"
+[1] "Removing knots 53 through 60 to fit dataset 254"
+[1] "Removing knots 53 through 60 to fit dataset 255"
+[1] "Removing knots 53 through 60 to fit dataset 256"
+[1] "Removing knots 53 through 60 to fit dataset 257"
+[1] "Removing knots 53 through 60 to fit dataset 258"
+[1] "Removing knots 53 through 60 to fit dataset 259"
+[1] "Removing knots 53 through 60 to fit dataset 260"
+[1] "Removing knots 53 through 60 to fit dataset 261"
+[1] "Removing knots 41 through 60 to fit dataset 262"
+[1] "Removing knots 53 through 60 to fit dataset 263"
+[1] "Removing knots 53 through 60 to fit dataset 264"
+[1] "Removing knots 53 through 60 to fit dataset 265"
+[1] "Removing knots 48 through 60 to fit dataset 266"
+[1] "Removing knots 53 through 60 to fit dataset 267"
+[1] "Removing knots 53 through 60 to fit dataset 268"
+[1] "Removing knots 30 through 60 to fit dataset 269"
+[1] "Removing knots 30 through 60 to fit dataset 270"
+[1] "Removing knots 31 through 60 to fit dataset 271"
+[1] "Removing knots 31 through 60 to fit dataset 272"
+> 
+> save(fit_all_values, file = "/Users/cshannum/Documents/CSM/NRELCollab/Package/unequalgroupoutlier/Plots_Code/FitData.Rdata")
+> 
+> # png("/Users/cshannum/Documents/CSM/NRELCollab/Package/unequalgroupoutlier/Plots_Code/CPU_Power_Fitted_Plot.png")
+> # Plot_fitted <- ggplot() +
+> #   geom_vline(xintercept = knots, alpha = .3, linetype = "dashed") +
+> #   geom_line(data = fit_all_values$Y, aes(x = x, y = fitted, group = ID), alpha = .5) +
+> #   labs(title = "Fitted CPU Power", hjust = .5, shape = "Type") +
+> #   theme_bw() +
+> #   theme(panel.grid.major = ggplot2::element_blank(),
+> #         panel.grid.minor = ggplot2::element_blank(),
+> #         plot.title = ggplot2::element_text(hjust = .5, size = ggplot2::rel(2)))
+> # print(Plot_fitted)
+> # dev.off()
+> 
+> #-------------------------------------------------------------------------------
+> # Put coefficients into matrix ####
+> coeff <- inner_join(fit_all_values$coeff_fixed, fit_all_values$coeff_random, by = "ID")
+> 
+> out <- outliers_plots(Y = fit_all_values$Y, coeff = coeff)
+Error in mrfDepth::outlyingness(coeff_only) : 
+  (converted from warning) An exact fit was found. Check the output for more details.
+Calls: outliers_plots -> <Anonymous>
+Execution halted

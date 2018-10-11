@@ -1,0 +1,31 @@
+Package: unequalgroupoutlier
+Type: Package
+Title: Anomaly Detection in Unequal Length Functional Data (Title Case)
+Version: 0.3.1
+Author: Caitlyn Hannum
+Maintainer: Caitlyn Hannum <channum@mines.edu>
+Description: This package provides tools for identifing anomalous behavior in
+    group functional data. Functional data is fit using a mixed model with a 
+    radial basis associated with the random coefficients. The estimated 
+    coefficients are then put through a series of multivariate outlier detection 
+    methods: PCA, Depth, t-SNE.
+License: mystuff
+Encoding: UTF-8
+LazyData: true
+Imports: 
+    DepthProc,
+    devtools,
+    expm,
+    ggplot2,
+    grDevices,
+    gridExtra,
+    lme4,
+    nlme, 
+    Rdpack,
+    roxygen2,
+    Rtsne,
+    tibble,
+    tidyverse
+RdMacros: Rdpack
+RoxygenNote: 6.0.1
+

@@ -1,0 +1,5 @@
+exportPattern("^[[:alpha:]]+")
+importFrom(Rdpack,reprompt)
+importFrom("stats", "dnorm", "rnorm")
+importFrom("stats", "filter", "fitted", "lm")
+importFrom("utils", "tail")
