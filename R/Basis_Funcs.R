@@ -35,6 +35,7 @@ piecewise_poly_basis_fun <- function(x, int_knots, p) {
 #' @param int_knots A vector containing the interior knots.
 #' @param p A value specifying the degree of the polynomial.
 #' @param theta OPTIONAL: A value specifying the range parameter.
+#' @param r A value specifying the exponent in the exponential.
 #' @return \code{Z} A radial basis matrix dimensions = n x k where n equals the length of \code{x} and k equals the length of \code{int_knots}.
 #' @details Let the {i, j} value of \code{Z_p} be exp( - abs(x_i - k_j)^p / theta) and the {i, j}
 #'  value of \code{Omega} be exp( - abs(k_i - k_j)^p / theta), then \code{Z} = \code{Z_p}%%*%%\code{Omega}^-1/2. The correction

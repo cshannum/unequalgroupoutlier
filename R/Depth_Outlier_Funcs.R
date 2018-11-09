@@ -192,13 +192,21 @@ bootstrap_C.depth <- function(coeff, d, B, d.method){
 #' True identifies outliers. \code{$Cb} is the cutoff value
 depth_Outliers <- function(coeff, d.method = "L2", c.method = "depth", alpha = .05, B = 1000){
 
-  d.ID <- unlist(coeff[, 1])
-  coeff <- coeff[, -1]
+  if(class(coeff)[1] == "matrix"){
+    d.ID <- c(1:nrow(coeff))
+
+  }else{
+    index <- which(colnames(coeff) == "ID")
+
+    d.ID <- unlist(coeff[, index])
+    coeff <- coeff[, -index]
+  }
+
   d.list <- bootstrap_C(coeff = coeff, d.method = d.method, c.method = c.method, alpha = alpha, B = B)
   d.out <- d.list$depths <= d.list$Cb
   d.out <- dplyr::tibble("ID" = d.ID,
-                  "outliers" = d.out,
-                  "depth"  = d.list$depths)
+                         "outliers" = d.out,
+                         "depth"  = d.list$depths)
   outlist <- list("outliers" = d.out,
                   "Cb" = d.list$Cb)
 
