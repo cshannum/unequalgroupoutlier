@@ -58,7 +58,6 @@ choose_knots <- function(Y, K){
     ki <- seq(box[i - 1], box[i], len = index[i - 1])[-1]
     knots <- append(knots, ki)
   }
-
   knots <- c(min(x), knots)
   return(knots)
 }
