@@ -2,7 +2,6 @@
 # > library(devtools)
 # > document()
 
-
 #' Create matrices for the mixed model with splines
 #'
 #' @description This function creates the two matrices for the fixed and
