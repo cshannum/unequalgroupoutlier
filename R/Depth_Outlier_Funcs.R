@@ -89,7 +89,8 @@ bootstrap_C.alpha <- function(coeff, d, B, alpha, d.method){
   B.index <- matrix(B.index, nr = n, nc = B)
 
   cutoff <- rep(0, B)
-  t <- floor(n*.01)
+  t <- max(floor(n*.01), 1)
+
   for(i in 1:B){
     B.coeff <- coeff[B.index[, i], ]
     # compute new depths for new dataset
@@ -140,7 +141,7 @@ bootstrap_C.depth <- function(coeff, d, B, d.method){
   # put into easy format
   B.index <- matrix(B.index, nr = n, nc = B)
   cutoff <- rep(0, B)
-  t <- floor(n*.01)
+  t <- max(floor(n*.01), 1)
   for(i in 1:B){
     B.coeff <- coeff[B.index[, i], ]
     # compute new depths for new dataset
