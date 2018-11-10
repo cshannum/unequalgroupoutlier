@@ -1,5 +1,4 @@
 # add knots lines to plots as the enter back into Mixed_Model_Spline_Fit function
-
 outliers_plots <- function(Y, coeff){
 
   # remove ID from matrix
