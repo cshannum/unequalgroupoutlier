@@ -69,14 +69,3 @@ radial_basis_fun <- function(x, int_knots, p, r = 1, theta = 2){
   Z <- Z_k %*% neg_sqrt_Omega_k
 }
 
-# B_spline_basis_fun <- function(x, knots, p, drv = 1){
-#   # Creates Z matrix for B-splines
-#
-#   range.x <- c(1.05 * min(x) - 0.05 * max(x), 1.05 * max(x) - 0.05 * min(x))
-#
-#   allKnots <- c(rep(range.x[1], 4), knots, rep(range.x[2], 4))
-#
-#   B <- spline.des(allKnots, x, ord= P + 1, derivs = drv,
-#                    outer.ok = TRUE)$design
-#   return(B)
-# }
