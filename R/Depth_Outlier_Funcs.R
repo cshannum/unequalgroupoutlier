@@ -81,7 +81,8 @@ bootstrap_C.alpha <- function(coeff, d, B, alpha, d.method){
   n <- length(d) # number of curves
 
   # remove the alpha % least deep curves
-  rm.index <- order(d, decreasing = F)[1:floor(n*alpha)]
+  t <- max(floor(n*.01), 1)
+  rm.index <- order(d, decreasing = F)[1:t]
 
   # bootstrap remaining depths
   B.index <- sample(c(1:n)[-rm.index], n*B, replace = T)
@@ -89,10 +90,14 @@ bootstrap_C.alpha <- function(coeff, d, B, alpha, d.method){
   B.index <- matrix(B.index, nr = n, nc = B)
 
   cutoff <- rep(0, B)
-  t <- max(floor(n*.01), 1)
+
 
   for(i in 1:B){
-    B.coeff <- coeff[B.index[, i], ]
+    if(class(coeff) == "matrix"){
+      B.coeff <- coeff[B.index[, i], ]
+    }else{
+      B.coeff <- coeff[B.index[, i]]
+    }
     # compute new depths for new dataset
     d.new <-  DepthProc::depth(B.coeff, method = d.method)@.Data
     # compute empirical 1% of each bootstrapped depth set
@@ -143,7 +148,11 @@ bootstrap_C.depth <- function(coeff, d, B, d.method){
   cutoff <- rep(0, B)
   t <- max(floor(n*.01), 1)
   for(i in 1:B){
-    B.coeff <- coeff[B.index[, i], ]
+    if(class(coeff) == "matrix"){
+      B.coeff <- coeff[B.index[, i], ]
+    }else{
+      B.coeff <- coeff[B.index[, i]]
+    }
     # compute new depths for new dataset
     d.new <-  DepthProc::depth(B.coeff, B.coeff, method = d.method)@.Data
     # compute empirical 1% of each bootstrapped depth set
@@ -197,10 +206,14 @@ depth_Outliers <- function(coeff, d.method = "L2", c.method = "depth", alpha = .
     d.ID <- c(1:nrow(coeff))
 
   }else{
-    index <- which(colnames(coeff) == "ID")
+    if(class(coeff)[1] == "numeric"){
+      d.ID <- c(1:length(coeff))
+    }else{
+      index <- which(colnames(coeff) == "ID")
 
-    d.ID <- unlist(coeff[, index])
-    coeff <- coeff[, -index]
+      d.ID <- unlist(coeff[, index])
+      coeff <- coeff[, -index]
+    }
   }
 
   d.list <- bootstrap_C(coeff = coeff, d.method = d.method, c.method = c.method, alpha = alpha, B = B)
