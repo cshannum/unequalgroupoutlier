@@ -2,6 +2,7 @@
 # > library(devtools)
 # > document()
 
+
 #' Create matrices for the mixed model with splines
 #'
 #' @description This function creates the two matrices for the fixed and
@@ -43,31 +44,31 @@ Mixed_Spline_Model <- function(x, knots, P = 1, spline = "Radial", r = 1, theta 
   # creates Xp and Zp for x
   # with K knots, for P polynomial basis
   # basis can = "Truncated poly", "Radial"
-  
+
   if(spline != "Radial" && spline != "Truncated Poly"){
     stop("spline must either be Radial or Truncated Poly")
   }
   if(P < 0){stop("P cannot be negative")}
-  
+
   N <- length(x)
   K <- length(knots)
-  
+
   # create matrix for random coefficients
   if(spline == "Truncated Poly"){
     basis = piecewise_poly_basis_fun
     # Compute basis matrix
     Z_p <- basis(x = x, int_knots = knots, p = P)
-    
+
   }else{
     basis = radial_basis_fun
     # Compute basis matrix
     Z_p <-  basis(x = x, int_knots = knots, p = P, r = r, theta = theta)
   }
-  
+
   # Create the fixed effect part
   P <- c(0:P)
   X_p<- sapply(P, function(t) x^t)
-  
+
   return(list("Z_p" = Z_p, "X_p" = X_p))
 }
 
@@ -91,35 +92,36 @@ Mixed_Spline_Model <- function(x, knots, P = 1, spline = "Radial", r = 1, theta 
 
 #' @references
 #' \insertRef{wand2003}{unequalgroupoutlier}
-Mixed_Spline_Fit_Single<-function(x, y, model){
+Mixed_Spline_Fit_Single<-function(x, y, model, corstrc = NULL){
   # fits mixed model for Xp and Zp on x and y
   Zp <<- model$Z_p
   Xp <<- model$X_p
-  
+
   if(is.null(Zp)){stop("Missing Z_p in model")}
   if(is.null(Xp)){stop("Missing X_p in model")}
-  
+
   group.x <<- rep(1, length(x))
   group_df <- nlme::groupedData(y ~ x|group.x, data = data.frame(x, y))
-  
+
   # lme(y ~ -1 + Xp,
   #     #random = nlme::pdIdent( ~ -1),
   #     data = group_df)
-  
+
   mod <- nlme::lme(y ~ -1 + Xp,
                    random = nlme::pdIdent( ~ -1 + Zp),
                    data = group_df, method = "ML",
                    control = nlme::lmeControl(opt = "optim",
                                               msVerbose = F ,
-                                              tolerance = 10^-3))#,
+                                              tolerance = 10^-3),
+                   correlation = corstrc)#,
   #sigma = Ysd))
   #print(mod$sigma)
-  
+
   # mod <- nlme::lme(y ~ -1 + Xp,
   #                  random = nlme::pdIdent( ~ -1 + Zp),
   #                  data = group_df, method = "REML",
   #                  control = nlme::lmeControl(opt = "nlminb", tolerance = 10^-3))
-  
+
   #Getting Estimates
   beta_hat <- mod$coefficients$fixed
   b_hat <- unlist(mod$coefficients$random)
@@ -137,7 +139,7 @@ Mixed_Spline_Fit_Single<-function(x, y, model){
       }
     }
   }
-  
+
   #rm(Zp, Xp, group.x)
   return(list("fit" = fit, "coeff_fix" = beta_hat, "coeff_rand" = b_hat))
 }
@@ -163,6 +165,7 @@ Mixed_Spline_Fit_Single<-function(x, y, model){
 #' used in the truncated polynomial basis function.
 #' @param verbose Logical - if set to TRUE will print out which knots are removed to fit the mixed model
 #' because those knots are outside that particular curve's range.
+#' @param costruc a correlation structure from nlme. (See Correlation Structure Classes help page for details)
 #'
 #' @return A large list is returned containing:
 #' \code{Y}, a tibble containing the inputted \code{ID}, \code{y}, \code{x}, and estimated fit of the data \code{fitted}.
@@ -170,6 +173,7 @@ Mixed_Spline_Fit_Single<-function(x, y, model){
 #' \code{beta1}, ..., \code{betaP}.
 #' \code{coeff_rand} a tibble containing \code{ID}, and the estimated random effects coefficients labeled \code{u1},
 #' \code{u2}, ..., \code{uK}.
+#'
 #'
 #' @details The trend function determined by P, is a
 #' polynomial: beta0 + beta1x + beta2x^2 + ... + betaPx^P. This forms the fixed effects part of the model. The bases at
@@ -196,27 +200,27 @@ Mixed_Spline_Fit_Single<-function(x, y, model){
 #'
 #' ggplot(fit$Y, aes(x = x, y = fitted, group = ID))+
 #'   geom_line(alpha = .5)
-Mixed_Model_Spline_Fit <- function(Y, knots, K, P = 1, spline = "Radial", r = 1, theta = 2, verbose = F){
+Mixed_Model_Spline_Fit <- function(Y, knots, K, P = 1, spline = "Radial", r = 1, theta = 2, verbose = F, corstrc = NULL){
   user_op <- getOption("warn")
   #options(warn = 2)
-  
+
   # fits mixed model for Xp and Zp on x and y
   dimY <- dim(Y)
   unique_ID <- unique(Y$ID)
   M <- length(unique_ID)
   P <<- P
   theta <<- theta
-  
+
   # Errors and missing input
   if(dimY[2] != 3){
     stop("Y must be a dataframe with a column for ID, y, and x.")
   }
-  
+
   if(spline != "Radial" && spline != "Truncated Poly"){
     stop("spline must = Radial or Truncated Poly")
   }
   if(P < 0){stop("P cannot be negative")}
-  
+
   if(missing(knots)){
     if(missing(K)){
       K <- ceiling(min(c(N / 4, 20)))
@@ -227,14 +231,14 @@ Mixed_Model_Spline_Fit <- function(Y, knots, K, P = 1, spline = "Radial", r = 1,
   }else{
     K <- length(knots)
   }
-  
+
   # add fitted column to dataframe
   Y <- tibble::add_column(Y, fitted = NA)
-  
+
   # create tibble for coefficients
   coeff_fix_names <- paste("beta", c(0:P), sep = "")
   coeff_random_names <- paste("u", c(1:K), sep = "")
-  
+
   coeff_fix <- dplyr::tibble(ID = unique_ID)
   for(i in 1:(P+1)){
     coeff_fix <- coeff_fix %>% tibble::add_column(!!(coeff_fix_names[i]) := NA)
@@ -243,16 +247,16 @@ Mixed_Model_Spline_Fit <- function(Y, knots, K, P = 1, spline = "Radial", r = 1,
   for(i in 1:K){
     coeff_random <- coeff_random %>% tibble::add_column(!!(coeff_random_names[i]) := NA)
   }
-  
+
   # Fit the mixed model
   for(i in 1:M){
-    
+
     df <- Y %>%
       dplyr::filter(ID == unique_ID[i])
-    
+
     y <- df$Y
     x <- df$x
-    
+
     # for constant functions
     if(all(y == y[1])){
       fit_all_values <- list()
@@ -260,20 +264,20 @@ Mixed_Model_Spline_Fit <- function(Y, knots, K, P = 1, spline = "Radial", r = 1,
       fit_all_values$fit <- fit$fitted.values
       fit_all_values$coeff_fix <- c(fit$coefficients, 0)
       fit_all_values$coeff_rand <- rep(0, K)
-      
+
     }else{
-      
+
       # Determine if we should remove any knots
       last_x <- tail(x, n = 1)
       Kout <- which(knots > last_x)
-      
+
       model <- Mixed_Spline_Model(x = x,
                                   knots = knots,
                                   P = P,
                                   spline = spline,
                                   r = r,
                                   theta = theta)
-      
+
       # t <- dim(model$Z_p)[2]
       # check <- mean(model$Z_p[, t])
       # Kout <- c()
@@ -282,14 +286,14 @@ Mixed_Model_Spline_Fit <- function(Y, knots, K, P = 1, spline = "Radial", r = 1,
       #   t <- t - 1
       #   check <- mean(model$Z_p[, t])
       # }
-      
+
       if(length(Kout) != 0){
         if(verbose == T){print(paste("Removing knots", Kout[1], "through", K, "to fit dataset", i))}
         model$Z_p <- model$Z_p[, -Kout]
       }
-      
-      
-      fit_all_values <- try(Mixed_Spline_Fit_Single(x = x, y = y, model), silent = T)
+
+
+      fit_all_values <- try(Mixed_Spline_Fit_Single(x = x, y = y, model, corstrc = corstrc), silent = T)
       # fit_all_values$coeff_fix
       # if(fit_all_values$coeff_fix[1] < -20){
       #   print("AHHH")
@@ -303,20 +307,20 @@ Mixed_Model_Spline_Fit <- function(Y, knots, K, P = 1, spline = "Radial", r = 1,
       # add 0's for coefficients of knots outside of y range
       fit_all_values$coeff_rand[Kout] <- 0
     }
-    
+
     # Put into nice format for output
     Y <- Y %>%
       dplyr::mutate(fitted = replace(fitted, which(ID == unique_ID[i]), fit_all_values$fit))
-    
+
     coeff_fix[i, -1] <- fit_all_values$coeff_fix
     coeff_random[i, -1] <- fit_all_values$coeff_rand
-    
+
   }
-  
+
   # Put into nice format for output
-  
+
   out_tibble <- list(Y = Y, coeff_fixed = coeff_fix, coeff_random = coeff_random, knots = knots)
-  
+
   options(warn = user_op)
   remove(Zp, Xp, group.x, P, pos = ".GlobalEnv")
   return(out_tibble)
@@ -327,24 +331,24 @@ Mixed_Model_Spline_Fit <- function(Y, knots, K, P = 1, spline = "Radial", r = 1,
 Mixed_Model_Spline_Fit.Keep_all_Knots<-function(Y, knots, K, P = 1, spline = "Radial", r = 1, theta = 2){
   user_op <- getOption("warn")
   options(warn = 2)
-  
+
   # fits mixed model for Xp and Zp on x and y
   dimY <- dim(Y)
   unique_ID <- unique(Y$ID)
   M <- length(unique_ID)
   P <<- P
   theta <<- theta
-  
+
   # Errors and missing input
   if(dimY[2] != 3){
     stop("Y must be a dataframe with a column for ID, y, and x.")
   }
-  
+
   if(spline != "Radial" && spline != "Truncated Poly"){
     stop("spline must = Radial or Truncated Poly")
   }
   if(P < 0){stop("P cannot be negative")}
-  
+
   if(missing(knots)){
     if(missing(K)){
       K <- ceiling(min(c(N / 4, 20)))
@@ -355,15 +359,15 @@ Mixed_Model_Spline_Fit.Keep_all_Knots<-function(Y, knots, K, P = 1, spline = "Ra
   }else{
     K <- length(knots)
   }
-  
+
   print("This may take a few minutes")
   # add fitted column to dataframe
   Y <- tibble::add_column(Y, fitted = NA)
-  
+
   # create tibble for coefficients
   coeff_fix_names <- paste("beta", c(0:P), sep = "")
   coeff_random_names <- paste("u", c(1:K), sep = "")
-  
+
   coeff_fix <- tibble(ID = unique_ID)
   for(i in 1:(P+1)){
     coeff_fix <- coeff_fix %>% tibble::add_column(!!(coeff_fix_names[i]) := NA)
@@ -372,17 +376,17 @@ Mixed_Model_Spline_Fit.Keep_all_Knots<-function(Y, knots, K, P = 1, spline = "Ra
   for(i in 1:K){
     coeff_random <- coeff_random %>% tibble::add_column(!!(coeff_random_names[i]) := NA)
   }
-  
+
   # Fit the mixed model
   new_model <- list()
   for(i in 1:M){
-    
+
     df <- Y %>%
       filter(ID == unique_ID[i])
-    
+
     y <- df$y
     x <- df$x
-    
+
     # for constant functions
     if(all(y == y[1])){
       fit_all_values <- list()
@@ -390,9 +394,9 @@ Mixed_Model_Spline_Fit.Keep_all_Knots<-function(Y, knots, K, P = 1, spline = "Ra
       fit_all_values$fit <- fit$fitted.values
       fit_all_values$coeff_fix <- c(fit$coefficients, 0)
       fit_all_values$coeff_rand <- rep(0, K)
-      
+
     }else{
-      
+
       # Create the fixed effects and random effects matrices
       model <- Mixed_Spline_Model(x = x,
                                   knots = knots,
@@ -409,20 +413,20 @@ Mixed_Model_Spline_Fit.Keep_all_Knots<-function(Y, knots, K, P = 1, spline = "Ra
         stop("Error: Try increasing theta OR decreasing r.")
       }
     }
-    
+
     # Put into nice format for output
     Y <- Y %>%
       dplyr::mutate(fitted = replace(fitted, which(ID == unique_ID[i]), fit_all_values$fit))
-    
+
     coeff_fix[i, -1] <- fit_all_values$coeff_fix #[, -1] to remove ID value since it is already in Y
     coeff_random[i, -1] <- fit_all_values$coeff_rand
-    
+
   }
-  
+
   # Put into nice format for output
-  
+
   out_tibble <- list(Y = Y, coeff_fixed = coeff_fix, coeff_random = coeff_random, knots = knots)
-  
+
   options(warn = user_op) # set user options back to original
   remove(Zp, Xp, group.x, P, pos = ".GlobalEnv") # remove variables from global environment
   return(out_tibble)
